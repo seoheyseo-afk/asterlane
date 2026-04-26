@@ -8,13 +8,14 @@ import { GenrePicker } from "./GenrePicker";
 
 interface EntryFormProps {
   entry?: Entry | null;
-  onKeep: (entry: Entry) => void;
+  cloudMode?: boolean;
+  onKeep: (entry: Entry, privateNotePasscode?: string) => void | Promise<void>;
   onClose: () => void;
 }
 
 const ASTER_VALUES = Array.from({ length: 10 }, (_, index) => (index + 1) / 2);
 
-export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
+export function EntryForm({ entry, cloudMode = false, onKeep, onClose }: EntryFormProps) {
   const [coverUrl, setCoverUrl] = useState("");
   const [title, setTitle] = useState("");
   const [type, setType] = useState<EntryType>("Film");
@@ -22,6 +23,8 @@ export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
   const [finished, setFinished] = useState("");
   const [aster, setAster] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
+  const [privateNotePasscode, setPrivateNotePasscode] = useState("");
+  const [passcodeError, setPasscodeError] = useState("");
 
   useEffect(() => {
     setCoverUrl(entry?.coverUrl ?? "");
@@ -31,6 +34,8 @@ export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
     setFinished(entry?.finished ?? todayInputValue());
     setAster(entry?.aster ?? null);
     setNotes(entry?.notes ?? "");
+    setPrivateNotePasscode("");
+    setPasscodeError("");
   }, [entry]);
 
   const canKeep = useMemo(() => title.trim().length > 0, [title]);
@@ -38,6 +43,13 @@ export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canKeep) return;
+    const trimmedNotes = notes.trim();
+    const trimmedPasscode = privateNotePasscode.trim();
+
+    if (cloudMode && trimmedNotes && !trimmedPasscode) {
+      setPasscodeError("Enter a passcode to keep Private Notes.");
+      return;
+    }
 
     onKeep({
       id: entry?.id ?? makeId(),
@@ -47,9 +59,9 @@ export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
       genres,
       finished,
       aster,
-      notes: notes.trim(),
+      notes: trimmedNotes,
       createdAt: entry?.createdAt ?? new Date().toISOString(),
-    });
+    }, trimmedPasscode || undefined);
   }
 
   return (
@@ -160,6 +172,26 @@ export function EntryForm({ entry, onKeep, onClose }: EntryFormProps) {
                   maxLength={1200}
                 />
               </label>
+
+              {cloudMode && (
+                <label className="field-block">
+                  <span className="field-label">Private Notes Passcode</span>
+                  <input
+                    className="field-input"
+                    type="password"
+                    value={privateNotePasscode}
+                    onChange={(event) => {
+                      setPrivateNotePasscode(event.target.value);
+                      setPasscodeError("");
+                    }}
+                    placeholder="Required when Notes are filled"
+                  />
+                  <span className="text-xs leading-5 text-muted">
+                    This passcode is not saved. Share it separately with people who should unlock Notes.
+                  </span>
+                  {passcodeError && <span className="text-sm font-semibold text-deepRose">{passcodeError}</span>}
+                </label>
+              )}
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button className="soft-button min-h-11 px-5" type="button" onClick={onClose}>

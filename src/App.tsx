@@ -131,8 +131,8 @@ export default function App() {
     setFormOpen(true);
   }
 
-  async function keepEntry(entry: Entry) {
-    const preparedEntry = await prepareEntryForSave(entry);
+  async function keepEntry(entry: Entry, privateNotePasscode?: string) {
+    const preparedEntry = await prepareEntryForSave(entry, privateNotePasscode);
     if (!preparedEntry) return;
 
     const exists = entries.some((item) => item.id === preparedEntry.id);
@@ -161,7 +161,7 @@ export default function App() {
     setEditingEntry(null);
   }
 
-  async function prepareEntryForSave(entry: Entry): Promise<Entry | null> {
+  async function prepareEntryForSave(entry: Entry, privateNotePasscode?: string): Promise<Entry | null> {
     if (!cloudMode) return entry;
 
     const noteText = (entry.notes ?? "").trim();
@@ -184,7 +184,7 @@ export default function App() {
       };
     }
 
-    const passcode = window.prompt("Set a passcode for Private Notes. Share it separately with people who should read notes.");
+    const passcode = privateNotePasscode?.trim();
     if (!passcode) return null;
 
     return {
@@ -295,6 +295,7 @@ export default function App() {
       {!readonlyMode && formOpen && (
         <EntryForm
           entry={editingEntry}
+          cloudMode={cloudMode}
           onKeep={keepEntry}
           onClose={() => {
             setFormOpen(false);
