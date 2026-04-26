@@ -34,7 +34,7 @@ returns text
 language sql
 stable
 as $$
-  select encode(digest(p_edit_token, 'sha256'), 'hex');
+  select encode(extensions.digest(p_edit_token, 'sha256'), 'hex');
 $$;
 
 create or replace function public.create_atlas(p_edit_token text)
@@ -51,7 +51,7 @@ begin
   end if;
 
   loop
-    v_share_id := lower(substr(encode(gen_random_bytes(9), 'hex'), 1, 12));
+    v_share_id := lower(substr(encode(extensions.gen_random_bytes(9), 'hex'), 1, 12));
 
     begin
       insert into public.atlases (share_id, edit_token_hash)
