@@ -1,16 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { APP_MODE } from "./config";
+import { APP_MODE, DATA_BACKEND } from "./config";
 import { Atlas } from "./components/Atlas";
 import { EntryDetail } from "./components/EntryDetail";
 import { EntryForm } from "./components/EntryForm";
 import { ExportModal } from "./components/ExportModal";
 import { PasscodeModal } from "./components/PasscodeModal";
+import {
+  createCloudAtlas,
+  deleteCloudEntry,
+  getShareUrl,
+  getStoredCloudSession,
+  isCloudConfigured,
+  loadCloudEntries,
+  makeEditToken,
+  parseSharedAtlasId,
+  saveCloudEntry,
+  storeCloudSession,
+} from "./data/cloud";
 import { loadLocalEntries, loadReadonlyEntries, saveLocalEntries } from "./data/storage";
 import type { Entry, SortMode, TypeFilter } from "./types";
 import { decryptNote } from "./utils/crypto";
 import { filterAndSortEntries } from "./utils/format";
 
-const readonlyMode = APP_MODE === "readonly";
+const staticReadonlyMode = APP_MODE === "readonly";
+const cloudMode = APP_MODE === "edit" && DATA_BACKEND === "supabase";
 
 export default function App() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -22,13 +35,16 @@ export default function App() {
   const [formOpen, setFormOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [editToken, setEditToken] = useState<string | null>(null);
   const [unlockEntry, setUnlockEntry] = useState<Entry | null>(null);
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState("");
   const [unlockedNotes, setUnlockedNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (readonlyMode) {
+    if (staticReadonlyMode) {
       loadReadonlyEntries()
         .then((readonlyEntries) => {
           setEntries(readonlyEntries);
@@ -41,8 +57,15 @@ export default function App() {
       return;
     }
 
+    if (cloudMode) {
+      initializeCloudAtlas();
+      return;
+    }
+
     setEntries(loadLocalEntries());
   }, []);
+
+  const readonlyMode = staticReadonlyMode || (cloudMode && !editToken);
 
   const searchableEntries = useMemo(
     () =>
@@ -57,9 +80,48 @@ export default function App() {
   );
   const selectedEntry = selectedId ? entries.find((entry) => entry.id === selectedId) ?? null : null;
 
+  async function initializeCloudAtlas() {
+    if (!isCloudConfigured) {
+      setLoadError("Supabase is not configured yet. Add VITE_SUPABASE_ANON_KEY to enable link sharing.");
+      setEntries(loadLocalEntries());
+      return;
+    }
+
+    try {
+      setLoadError("");
+      const sharedAtlasId = parseSharedAtlasId();
+      const storedSession = getStoredCloudSession(sharedAtlasId);
+
+      if (storedSession) {
+        setShareId(storedSession.shareId);
+        setEditToken(storedSession.editToken);
+        setEntries(await loadCloudEntries(storedSession.shareId));
+        return;
+      }
+
+      if (sharedAtlasId) {
+        setShareId(sharedAtlasId);
+        setEditToken(null);
+        setEntries(await loadCloudEntries(sharedAtlasId));
+        return;
+      }
+
+      const newEditToken = makeEditToken();
+      const newShareId = await createCloudAtlas(newEditToken);
+      const session = { shareId: newShareId, editToken: newEditToken };
+      storeCloudSession(session);
+      setShareId(newShareId);
+      setEditToken(newEditToken);
+      setEntries([]);
+    } catch {
+      setLoadError("The cloud Atlas could not be opened.");
+      setEntries([]);
+    }
+  }
+
   function replaceEntries(nextEntries: Entry[]) {
     setEntries(nextEntries);
-    if (!readonlyMode) {
+    if (!staticReadonlyMode && !cloudMode) {
       saveLocalEntries(nextEntries);
     }
   }
@@ -69,9 +131,25 @@ export default function App() {
     setFormOpen(true);
   }
 
-  function keepEntry(entry: Entry) {
+  async function keepEntry(entry: Entry) {
     const exists = entries.some((item) => item.id === entry.id);
     const nextEntries = exists ? entries.map((item) => (item.id === entry.id ? entry : item)) : [entry, ...entries];
+
+    if (cloudMode) {
+      if (!shareId || !editToken) {
+        setLoadError("This Atlas is read-only here.");
+        return;
+      }
+
+      try {
+        await saveCloudEntry(shareId, editToken, entry);
+        setLoadError("");
+      } catch {
+        setLoadError("Could not keep this entry in Supabase.");
+        return;
+      }
+    }
+
     replaceEntries(nextEntries);
     setSelectedId(entry.id);
     setFormOpen(false);
@@ -84,13 +162,41 @@ export default function App() {
     setFormOpen(true);
   }
 
-  function deleteSelected() {
+  async function deleteSelected() {
     if (!selectedEntry) return;
     const confirmed = window.confirm(`Delete "${selectedEntry.title}" from Asterlane?`);
     if (!confirmed) return;
 
+    if (cloudMode) {
+      if (!shareId || !editToken) {
+        setLoadError("This Atlas is read-only here.");
+        return;
+      }
+
+      try {
+        await deleteCloudEntry(shareId, editToken, selectedEntry.id);
+        setLoadError("");
+      } catch {
+        setLoadError("Could not delete this entry in Supabase.");
+        return;
+      }
+    }
+
     replaceEntries(entries.filter((entry) => entry.id !== selectedEntry.id));
     setSelectedId(null);
+  }
+
+  async function shareAtlas() {
+    if (!shareId) return;
+    const shareUrl = getShareUrl(shareId);
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareStatus("Share link copied. Anyone with the link can view this Atlas.");
+    } catch {
+      window.prompt("Copy this share link:", shareUrl);
+      setShareStatus("Share link is ready.");
+    }
   }
 
   async function unlockNotes(passcode: string) {
@@ -117,13 +223,16 @@ export default function App() {
         typeFilter={typeFilter}
         sort={sort}
         readonlyMode={readonlyMode}
+        cloudMode={cloudMode}
         loadError={loadError}
+        shareStatus={shareStatus}
         onFindChange={setFind}
         onTypeChange={setTypeFilter}
         onSortChange={setSort}
         onOpenEntry={(entry) => setSelectedId(entry.id)}
         onAdd={openAddForm}
         onExport={() => setExportOpen(true)}
+        onShare={shareAtlas}
       />
 
       {selectedEntry && (
@@ -152,7 +261,7 @@ export default function App() {
         />
       )}
 
-      {!readonlyMode && exportOpen && <ExportModal entries={entries} onClose={() => setExportOpen(false)} />}
+      {!readonlyMode && !cloudMode && exportOpen && <ExportModal entries={entries} onClose={() => setExportOpen(false)} />}
 
       {unlockEntry && (
         <PasscodeModal

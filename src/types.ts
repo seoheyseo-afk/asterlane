@@ -29,3 +29,8 @@ export interface ReadonlyExport {
   exportedAt: string;
   entries: Entry[];
 }
+
+export interface CloudAtlasSession {
+  shareId: string;
+  editToken: string | null;
+}

@@ -8,13 +8,16 @@ interface AtlasProps {
   typeFilter: TypeFilter;
   sort: SortMode;
   readonlyMode: boolean;
+  cloudMode: boolean;
   loadError: string;
+  shareStatus: string;
   onFindChange: (value: string) => void;
   onTypeChange: (value: TypeFilter) => void;
   onSortChange: (value: SortMode) => void;
   onOpenEntry: (entry: Entry) => void;
   onAdd: () => void;
   onExport: () => void;
+  onShare: () => void;
 }
 
 export function Atlas({
@@ -23,13 +26,16 @@ export function Atlas({
   typeFilter,
   sort,
   readonlyMode,
+  cloudMode,
   loadError,
+  shareStatus,
   onFindChange,
   onTypeChange,
   onSortChange,
   onOpenEntry,
   onAdd,
   onExport,
+  onShare,
 }: AtlasProps) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 pb-12 pt-5 sm:px-6 lg:px-8">
@@ -40,9 +46,15 @@ export function Atlas({
         </div>
         {!readonlyMode && (
           <div className="flex flex-wrap gap-2">
-            <button className="soft-button min-h-11 px-4" type="button" onClick={onExport}>
-              Export Read-only Data
-            </button>
+            {cloudMode ? (
+              <button className="soft-button min-h-11 px-4" type="button" onClick={onShare}>
+                Copy Share Link
+              </button>
+            ) : (
+              <button className="soft-button min-h-11 px-4" type="button" onClick={onExport}>
+                Export Read-only Data
+              </button>
+            )}
             <button className="primary-button min-h-11 px-5" type="button" onClick={onAdd}>
               Add to Asterlane
             </button>
@@ -91,6 +103,11 @@ export function Atlas({
       {loadError && (
         <p className="mb-4 rounded-[0.7rem] border border-rose/35 bg-vellum px-4 py-3 text-sm text-deepRose">
           {loadError}
+        </p>
+      )}
+      {shareStatus && (
+        <p className="mb-4 rounded-[0.7rem] border border-champagne/50 bg-vellum px-4 py-3 text-sm text-cocoa">
+          {shareStatus}
         </p>
       )}
 
