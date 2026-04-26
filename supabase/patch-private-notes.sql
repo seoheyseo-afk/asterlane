@@ -1,6 +1,8 @@
 alter table public.entries
 add column if not exists private_notes jsonb;
 
+drop function if exists public.list_entries(text);
+
 create or replace function public.list_entries(p_share_id text)
 returns table (
   id text,
