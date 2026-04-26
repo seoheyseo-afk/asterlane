@@ -17,6 +17,7 @@ create table if not exists public.entries (
   finished date,
   aster numeric(2, 1) check (aster is null or (aster >= 0.5 and aster <= 5.0 and mod(aster * 10, 5) = 0)),
   notes text not null default '',
+  private_notes jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -74,6 +75,7 @@ returns table (
   finished text,
   aster numeric,
   notes text,
+  private_notes jsonb,
   created_at text
 )
 language sql
@@ -89,6 +91,7 @@ as $$
     coalesce(to_char(e.finished, 'YYYY-MM-DD'), '') as finished,
     e.aster,
     e.notes,
+    e.private_notes,
     e.created_at::text
   from public.entries e
   join public.atlases a on a.id = e.atlas_id
@@ -130,6 +133,7 @@ begin
     finished,
     aster,
     notes,
+    private_notes,
     created_at,
     updated_at
   )
@@ -143,6 +147,7 @@ begin
     nullif(p_entry->>'finished', '')::date,
     nullif(p_entry->>'aster', '')::numeric,
     coalesce(p_entry->>'notes', ''),
+    nullif(p_entry->>'privateNotes', '')::jsonb,
     coalesce(nullif(p_entry->>'createdAt', '')::timestamptz, now()),
     now()
   )
@@ -155,6 +160,7 @@ begin
     finished = excluded.finished,
     aster = excluded.aster,
     notes = excluded.notes,
+    private_notes = excluded.private_notes,
     updated_at = now()
   where public.entries.atlas_id = v_atlas_id;
 end;

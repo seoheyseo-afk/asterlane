@@ -23,6 +23,9 @@ export function EntryDetail({
   onDelete,
   onUnlock,
 }: EntryDetailProps) {
+  const visiblePrivateNote = unlockedNote ?? entry.notes;
+  const hasPrivateNote = Boolean(entry.privateNotes);
+
   return (
     <div className="fixed inset-0 z-30 bg-ink/35 backdrop-blur-sm" role="dialog" aria-modal="true">
       <aside className="ml-auto flex h-full w-full flex-col overflow-y-auto bg-cream shadow-bloom sm:max-w-xl">
@@ -62,11 +65,11 @@ export function EntryDetail({
               <AsterRating value={entry.aster} />
             </DetailRow>
 
-            {readonlyMode && entry.privateNotes ? (
+            {hasPrivateNote ? (
               <section className="rounded-[0.8rem] border border-champagne/45 bg-vellum/70 p-4">
                 <h3 className="field-label mb-2">Private Notes</h3>
-                {unlockedNote !== undefined ? (
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-ink">{unlockedNote || "No notes kept."}</p>
+                {visiblePrivateNote !== undefined ? (
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-ink">{visiblePrivateNote || "No notes kept."}</p>
                 ) : (
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-muted">This memory is tucked away.</p>

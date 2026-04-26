@@ -70,9 +70,9 @@ If the repository name changes, update `VITE_BASE_PATH` in the workflow or `repo
 
 ## Notes Privacy
 
-The passcode is not stored in the code, in JSON, in environment variables, or in `localStorage`. Notes are encrypted with Web Crypto API using PBKDF2 and AES-GCM. Each entry gets its own random salt and iv. The passcode only lives in memory while the page is open.
+The passcode is not stored in the code, in JSON, in environment variables, in Supabase, or in `localStorage`. Notes are encrypted with Web Crypto API using PBKDF2 and AES-GCM. Each entry gets its own random salt and iv. The passcode only lives in memory while the page is open.
 
-This encryption applies to the JSON readonly export flow. In Supabase link-sharing mode, a shared Atlas link is read-only but its entries, including notes, are visible to people with the link.
+In Supabase mode, notes are saved as encrypted `privateNotes`. A shared Atlas link is read-only, and notes stay locked until the viewer enters the passcode.
 
 ## Image URLs
 

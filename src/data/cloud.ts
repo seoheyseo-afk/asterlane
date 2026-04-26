@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { CLOUD_CURRENT_ATLAS_KEY, CLOUD_EDIT_TOKEN_PREFIX, SUPABASE_ANON_KEY, SUPABASE_URL } from "../config";
-import type { CloudAtlasSession, Entry, EntryType } from "../types";
+import type { CloudAtlasSession, Entry, EntryType, PrivateNotes } from "../types";
 
 interface CloudEntryRow {
   id: string;
@@ -11,6 +11,7 @@ interface CloudEntryRow {
   finished: string | null;
   aster: number | null;
   notes: string | null;
+  private_notes: PrivateNotes | null;
   created_at: string | null;
 }
 
@@ -98,6 +99,7 @@ export async function saveCloudEntry(shareId: string, editToken: string, entry: 
       finished: entry.finished,
       aster: entry.aster,
       notes: entry.notes ?? "",
+      privateNotes: entry.privateNotes ? JSON.stringify(entry.privateNotes) : "",
       createdAt: entry.createdAt,
     },
   });
@@ -123,6 +125,7 @@ export async function deleteCloudEntry(shareId: string, editToken: string, entry
 
 function mapCloudEntry(row: CloudEntryRow): Entry {
   const entryType = row.entry_type === "Series" || row.entry_type === "Book" ? row.entry_type : "Film";
+  const privateNotes = row.private_notes ?? undefined;
 
   return {
     id: row.id,
@@ -132,7 +135,8 @@ function mapCloudEntry(row: CloudEntryRow): Entry {
     genres: row.genres ?? [],
     finished: row.finished ?? "",
     aster: typeof row.aster === "number" ? row.aster : row.aster === null ? null : Number(row.aster),
-    notes: row.notes ?? "",
+    notes: privateNotes ? row.notes || undefined : row.notes ?? "",
+    privateNotes,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }

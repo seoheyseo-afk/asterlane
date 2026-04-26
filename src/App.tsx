@@ -19,7 +19,7 @@ import {
 } from "./data/cloud";
 import { loadLocalEntries, loadReadonlyEntries, saveLocalEntries } from "./data/storage";
 import type { Entry, SortMode, TypeFilter } from "./types";
-import { decryptNote } from "./utils/crypto";
+import { decryptNote, encryptNote } from "./utils/crypto";
 import { filterAndSortEntries } from "./utils/format";
 
 const staticReadonlyMode = APP_MODE === "readonly";
@@ -132,8 +132,13 @@ export default function App() {
   }
 
   async function keepEntry(entry: Entry) {
-    const exists = entries.some((item) => item.id === entry.id);
-    const nextEntries = exists ? entries.map((item) => (item.id === entry.id ? entry : item)) : [entry, ...entries];
+    const preparedEntry = await prepareEntryForSave(entry);
+    if (!preparedEntry) return;
+
+    const exists = entries.some((item) => item.id === preparedEntry.id);
+    const nextEntries = exists
+      ? entries.map((item) => (item.id === preparedEntry.id ? preparedEntry : item))
+      : [preparedEntry, ...entries];
 
     if (cloudMode) {
       if (!shareId || !editToken) {
@@ -142,7 +147,7 @@ export default function App() {
       }
 
       try {
-        await saveCloudEntry(shareId, editToken, entry);
+        await saveCloudEntry(shareId, editToken, { ...preparedEntry, notes: preparedEntry.privateNotes ? "" : preparedEntry.notes });
         setLoadError("");
       } catch {
         setLoadError("Could not keep this entry in Supabase.");
@@ -151,14 +156,51 @@ export default function App() {
     }
 
     replaceEntries(nextEntries);
-    setSelectedId(entry.id);
+    setSelectedId(preparedEntry.id);
     setFormOpen(false);
     setEditingEntry(null);
   }
 
+  async function prepareEntryForSave(entry: Entry): Promise<Entry | null> {
+    if (!cloudMode) return entry;
+
+    const noteText = (entry.notes ?? "").trim();
+    const existingPrivateNotes = editingEntry?.privateNotes;
+    const existingNoteWasUnlocked = unlockedNotes[entry.id] !== undefined;
+
+    if (!noteText && existingPrivateNotes && !existingNoteWasUnlocked) {
+      return {
+        ...entry,
+        notes: undefined,
+        privateNotes: existingPrivateNotes,
+      };
+    }
+
+    if (!noteText) {
+      return {
+        ...entry,
+        notes: "",
+        privateNotes: undefined,
+      };
+    }
+
+    const passcode = window.prompt("Set a passcode for Private Notes. Share it separately with people who should read notes.");
+    if (!passcode) return null;
+
+    return {
+      ...entry,
+      notes: noteText,
+      privateNotes: await encryptNote(noteText, passcode),
+    };
+  }
+
   function editSelected() {
     if (!selectedEntry) return;
-    setEditingEntry(selectedEntry);
+    setEditingEntry(
+      unlockedNotes[selectedEntry.id] !== undefined
+        ? { ...selectedEntry, notes: unlockedNotes[selectedEntry.id] }
+        : selectedEntry,
+    );
     setFormOpen(true);
   }
 
